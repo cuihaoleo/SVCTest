@@ -69,7 +69,7 @@ class SVMDecoder():
 def main():
     decoder = SVMDecoder("out.tcp", "out.udp")
     fourcc = cv2.VideoWriter_fourcc(*"Y8  ")
-    writer = cv2.VideoWriter("dec.avi", fourcc, 20.0, decoder.size, False)
+    writer = cv2.VideoWriter("dec.avi", fourcc, 20.0, decoder.size[::-1], False)
     
     while True:
         timestamp, frame = decoder.read_frame()

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import time
 import os
 import select
@@ -11,9 +12,9 @@ import queue
 
 from jpsvc_dec import BS_LAYER_HEADER, EH_LAYER_HEADER
 from socket import IPPROTO_IP
-from socket import IP_MULTICAST_TTL, IP_MULTICAST_LOOP
+from socket import IP_MULTICAST_TTL
 from socket import SOCK_DGRAM, SOCK_STREAM
-from socket import AF_INET, AF_INET6
+from socket import AF_INET
 
 
 class TCPSender(threading.Thread):
@@ -73,7 +74,6 @@ class SVCServer(threading.Thread):
 
         tsock.bind(bind)
         usock.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, mcast_ttl)
-        #usock.setsockopt(IPPROTO_IP, IP_MULTICAST_LOOP, 1)
 
     def load_frame(self):
         buf_hdr = self.fbl.read(BS_LAYER_HEADER.size)
@@ -156,8 +156,28 @@ class SVCServer(threading.Thread):
         self.usock.close()
         self.tsock.close()
 
+
 def main():
-    server = SVCServer("out.tcp", "out.udp")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-t", "--tcp_file",
+                        required=True,
+                        help="Base layer in TCP")
+    parser.add_argument("-u", "--udp_file",
+                        required=True,
+                        help="Enhanced layer in UDP")
+    parser.add_argument("-b", "--bind",
+                        required=True,
+                        help="SVC server bind address / port")
+    parser.add_argument("-m", "--mgroup",
+                        default="224.21.22.2:21222",
+                        help="SVC server multicast group")
+    args = parser.parse_args()
+
+    host, port = args.bind.rsplit(":", 1)
+    mgroup, mport = args.mgroup.rsplit(":", 1)
+    server = SVCServer(args.tcp_file, args.udp_file,
+                       bind=(host, int(port)),
+                       mgroup=(mgroup, int(mport)))
     server.daemon = True
     server.start()
     server.join()
@@ -165,4 +185,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import struct
 import socket
 import select
@@ -80,7 +81,24 @@ class SVCClient(threading.Thread):
                 self.recv_enhance()
 
 
-if __name__ == "__main__":
-    client = SVCClient("recv.tcp", "recv.udp", ("127.0.0.1", 21222))
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-t", "--tcp_file",
+                        required=True,
+                        help="Base layer in TCP")
+    parser.add_argument("-u", "--udp_file",
+                        required=True,
+                        help="Enhanced layer in UDP")
+    parser.add_argument("server",
+                        help="SVC server address / port")
+    args = parser.parse_args()
+
+    host, port = args.server.rsplit(":", 1)
+    client = SVCClient(args.tcp_file, args.udp_file, (host, int(port)))
+    client.daemon = True
     client.start()
     client.join()
+
+
+if __name__ == "__main__":
+    main()

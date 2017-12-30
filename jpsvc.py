@@ -3,10 +3,10 @@
 import cv2
 import struct
 import zlib
-# import numpy as np
 import sys
 
-class SVMWriter():
+
+class SVCWriter():
 
     def __init__(self, path_bl, path_el,
                  size, jpeg_quality, mtu, min_layer=2):
@@ -55,20 +55,6 @@ class SVMWriter():
             yield (off, buf)
             off += mi
 
-    # UDP packet:
-    # Enhance UDP:
-    #     TIME(uint16)
-    #     LAYER(8bit)
-    #     OFFSET(32bit)
-    #     LENGTH(32bit)
-    #     (IF BITMAP ENCODING)
-    #         ZLIB DATA
-    #     (IF RUN-LEN ENCODING)
-    #         ZLIB DATA
-    #         VALUE(1bit), LENGTH(7bit)
-    #         VALUE(1bit), LENGTH(7bit)
-    #         ......
-
     def _write_layer(self, timestamp, layer, nth):
 
         hdr_size = struct.calcsize("!IBII")
@@ -108,26 +94,31 @@ class SVMWriter():
         self.count += 1
 
 
-video_path = sys.argv[1]
-cap = cv2.VideoCapture(video_path)
+def main():
+    video_path = sys.argv[1]
+    cap = cv2.VideoCapture(video_path)
+    
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    writer = SVCWriter("out.tcp", "out.udp", (height, width), 40, 1400)
+    fourcc = cv2.VideoWriter_fourcc(*"Y8  ")
+    writer2 = cv2.VideoWriter("out.avi", fourcc, 20.0, (height, width), False)
+    
+    count = 0
+    while (cap.isOpened() and count < 1000):
+        ret, frame = cap.read()
+        timestamp = int(cap.get(cv2.CAP_PROP_POS_MSEC))
+    
+        if not ret:
+            break
+    
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        writer2.write(frame)
+        writer.write_frame(frame, timestamp)
+        print("Frame #%d (%d)" % (count, timestamp))
+    
+        count += 1
 
-height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-writer = SVMWriter("out.tcp", "out.udp", (height, width), 40, 1400)
-fourcc = cv2.VideoWriter_fourcc(*"Y8  ")
-writer2 = cv2.VideoWriter("out.avi", fourcc, 20.0, (height, width), False)
 
-count = 0
-while (cap.isOpened() and count < 1000):
-    ret, frame = cap.read()
-    timestamp = int(cap.get(cv2.CAP_PROP_POS_MSEC))
-
-    if not ret:
-        break
-
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    writer2.write(frame)
-    writer.write_frame(frame, timestamp)
-    print("Frame #%d (%d)" % (count, timestamp))
-
-    count += 1
+if __name__ == "__main__":
+    main()
