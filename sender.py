@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import itertools
+import logging
 import argparse
 import time
 import os
@@ -18,8 +20,15 @@ from socket import AF_INET
 
 
 class TCPSender(threading.Thread):
+
+    gen_id = itertools.count().__next__
+
     def __init__(self, conn, maxsize=10):
         super().__init__()
+
+        self.id = TCPSender.gen_id()
+        self.logger = logging.getLogger("TCPSender #%d" % self.id)
+
         self.conn = conn
         self.queue = queue.Queue(maxsize)
         self.closed = False
@@ -38,10 +47,13 @@ class TCPSender(threading.Thread):
                 data = self.queue.get()
 
                 try:
-                    self.conn.send(data)
+                    self.conn.sendall(data)
                 except BrokenPipeError:
+                    self.logger.warning("Broken PIPE")
                     self.close()
                     break
+                else:
+                    self.logger.info("%d bytes sent", len(data))
 
                 if self.queue.empty():
                     break
@@ -60,6 +72,8 @@ class SVCServer(threading.Thread):
         self.fbl = open(path_bl, "rb")
         self.fel = open(path_el, "rb")
 
+        self.logger = logging.getLogger("SVCServer")
+
         maddr_b = socket.inet_aton(mgroup[0])
         self.first_pkt = struct.pack("!4sH", maddr_b, mgroup[1])
 
@@ -75,9 +89,14 @@ class SVCServer(threading.Thread):
         tsock.bind(bind)
         usock.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, mcast_ttl)
 
+        self.logger.info("TCP bind: %s %d", bind[0], bind[1])
+        self.logger.info("UDP multicast group: %s %d", mgroup[0], mgroup[1])
+
     def load_frame(self):
         buf_hdr = self.fbl.read(BS_LAYER_HEADER.size)
         if len(buf_hdr) < BS_LAYER_HEADER.size:
+            self.logger.info("EOF in TCP file at %d bytes",
+                             self.fbl.tell())
             return None, None, None
         timestamp, jpeg_size, sign_size = BS_LAYER_HEADER.unpack(buf_hdr)
 
@@ -153,11 +172,14 @@ class SVCServer(threading.Thread):
 
         for c in clients:
             c.close()
+            c.join()
         self.usock.close()
         self.tsock.close()
 
 
 def main():
+    logging.basicConfig(level=logging.DEBUG)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--tcp_file",
                         required=True,

@@ -3,6 +3,7 @@ import numpy as np
 import struct
 import zlib
 import os
+import sys
 
 BS_LAYER_HEADER = struct.Struct("!III")
 EH_LAYER_HEADER = struct.Struct("!IBII")
@@ -15,6 +16,7 @@ class SVMDecoder():
 
         buf = self.fbl.read(8)
         self.height, self.width = struct.unpack("!II", buf)
+        self.last_time = 0
 
     @property
     def size(self):
@@ -30,14 +32,17 @@ class SVMDecoder():
                 break
 
             timestamp, nth, offset, size = EH_LAYER_HEADER.unpack(buf)
-            if timestamp != tcp_time:
+            if timestamp > tcp_time:
                 self.fel.seek(-EH_LAYER_HEADER.size, os.SEEK_CUR)
                 break
+            elif timestamp < tcp_time:
+                self.fel.seek(size, os.SEEK_CUR)
+                continue
 
             raw = self.fel.read(size)
             buf = zlib.decompress(raw)
             decomp = np.fromiter(buf, dtype=np.uint8)
-            print(offset, offset+len(decomp), nth)
+            print("ENHANCE:", timestamp, nth, offset)
             layer[offset:offset+len(decomp)] += decomp << nth
 
         neg = (layer & 0x80) > 0
@@ -51,7 +56,8 @@ class SVMDecoder():
             return None, None
 
         timestamp, jpeg_size, sign_size = BS_LAYER_HEADER.unpack(buf)
-        print(timestamp)
+        print("BASE:", timestamp, timestamp - self.last_time)
+        self.last_time = timestamp
         jpeg = self.fbl.read(jpeg_size)
 
         buf = self.fbl.read(sign_size)
@@ -67,7 +73,10 @@ class SVMDecoder():
 
 
 def main():
-    decoder = SVMDecoder("out.tcp", "out.udp")
+    tcp_path = sys.argv[1]
+    udp_path = sys.argv[2]
+
+    decoder = SVMDecoder(tcp_path, udp_path)
     fourcc = cv2.VideoWriter_fourcc(*"Y8  ")
     writer = cv2.VideoWriter("dec.avi", fourcc, 20.0, decoder.size[::-1], False)
     
