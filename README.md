@@ -1,6 +1,6 @@
-= SimpleSVC =
+# SimpleSVC
 
-== Encode SimpleSVC video ==
+## Encode SimpleSVC video
 
 Command:
 ```
@@ -30,7 +30,7 @@ Setup QoS for client. You can skip this step but then no packet drop:
 sudo bash qos.sh veth2a 25
 ```
 
-== Video transfer ==
+## Video transfer
 
 You need two terminals for this step.
 
@@ -57,7 +57,7 @@ $ ls -al result/*.{tcp,udp}
 
 `recv.udp` should be smaller than `raw.udp` because some layers are dropped. `recv.tcp` and `raw.tcp` should be the same if no base layer data are dropped. Note that my decoder cannot decode broken base layer.
 
-== Decode SimpleSVC video ==
+## Decode SimpleSVC video
 
 Run following command to convert received SimpleSVC video to raw Y8 format AVI:
 ```
@@ -74,7 +74,7 @@ To decode base layer only, omit `-u` parameter:
 python3 jpsvc_dec.py -t result/recv.tcp -b 10 result/dec_base.avi
 ```
 
-== Compare videos (MSE/PSNR) ==
+## Compare videos (MSE/PSNR)
 
 I write a simple python scripts for this. If you want to reproduce the data, run:
 ```
