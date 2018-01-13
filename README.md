@@ -1,5 +1,18 @@
 # SimpleSVC
 
+## Software requirement
+
+Our experiment environment:
+- Arch Linux with 4.14 kernel
+- iproute2 4.14.1
+- Python 3.6
+- Numpy 1.14
+- OpenCV 3.4 (with Python 3 binding)
+
+Any recent Linux distribution should be OK. Python 2 is not supported. OpenCV 2.4 should be OK but we didn't test.
+
+If you don't want to waste time setting up the whole software environment, simply use the virtual machine image.
+
 ## Encode SimpleSVC video
 
 Command:
@@ -11,7 +24,7 @@ where `data/original.flv` is the input video for encoding, and `result/raw.tcp` 
 
 Note: The command takes very long time to encode. On my computer, it takes half an hour to encode `original.flv`. If you don't want to wait, simply copy `data/raw.tcp` and `data/raw.udp` to `result/` folder to continue next step.
 
-== Network setup ==
+## Network setup
 
 Note: You must use a recent Linux system (eg: Ubuntu 16.04 or later), and have root permission.
 
@@ -64,14 +77,14 @@ Run following command to convert received SimpleSVC video to raw Y8 format AVI:
 python3 jpsvc_dec.py -t result/recv.tcp -u result/recv.udp result/dec.avi
 ```
 
-If you want to watch actual video, set `-b N` parameter:
+If you want to watch actual video, set `-d N` parameter:
 ```
-python3 jpsvc_dec.py -t result/recv.tcp -u result/recv.udp -b 10 result/dec.avi
+python3 jpsvc_dec.py -t result/recv.tcp -u result/recv.udp -d 10 result/dec.avi
 ```
 
 To decode base layer only, omit `-u` parameter:
 ```
-python3 jpsvc_dec.py -t result/recv.tcp -b 10 result/dec_base.avi
+python3 jpsvc_dec.py -t result/recv.tcp -d 10 result/dec_base.avi
 ```
 
 ## Compare videos (MSE/PSNR)
