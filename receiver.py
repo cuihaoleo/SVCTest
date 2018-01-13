@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import argparse
 import struct
 import socket
@@ -23,12 +24,13 @@ class SVCClient(threading.Thread):
 
     def __init__(self, path_bl, path_el, server, buf_ms=1000):
         super().__init__()
+        self.logger = logging.getLogger("SVCClient")
 
         self.usock = usock = socket.socket(AF_INET, SOCK_DGRAM)
         self.tsock = tsock = socket.socket(AF_INET, SOCK_STREAM)
 
         tsock.connect(server)
-        print("TCP connect: %s:%d" % server)
+        self.logger.info("TCP connect: %s:%d", *server)
 
         st_mcast_addr = struct.Struct("!4sH")
         buf = tsock.recv(st_mcast_addr.size)
@@ -40,7 +42,7 @@ class SVCClient(threading.Thread):
         mreq = struct.pack('4sL', maddr_b, INADDR_ANY)
         usock.setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, mreq)
 
-        print("UDP broadcast: %s:%d" % self.mgroup)
+        self.logger.info("UDP broadcast: %s:%d", *self.mgroup)
 
         st_size = struct.Struct("!II")
         buf = tsock.recv(st_size.size)
@@ -71,21 +73,21 @@ class SVCClient(threading.Thread):
                 timestamp, _, _ = BS_LAYER_HEADER.unpack(hdr)
                 self.start_timestamp = timestamp
                 self.start_time = time.time()
-                print("Current time:", self.start_time)
-                print("Timestamp of 1st frame", self.start_timestamp)
+                self.logger.debug("Current time: %d", self.start_time)
+                self.logger.debug("Timestamp of 1st frame %d", self.start_timestamp)
 
             self.fbl.write(buf)
-            print(self.fbl.tell())
 
     def _do_write(self):
         d_t = (time.time() - self.start_time) * 1000
 
         while len(self.heap) > 0:
             timestamp, nth, offset, pkt = self.heap[0]
+            nth = -nth
             d_ts = timestamp - self.start_timestamp
 
             if d_t - d_ts >= self.buf_ms:
-                print("WRITE timestamp:", timestamp)
+                self.logger.debug("WRITE timestamp: %d", timestamp)
                 self.fel.write(pkt)
                 heapq.heappop(self.heap)
             else:
@@ -99,8 +101,8 @@ class SVCClient(threading.Thread):
         d_t = (time.time() - self.start_time) * 1000
 
         if d_ts - d_t <= self.buf_ms:
-            print("QUEUE timestamp:", timestamp)
-            heapq.heappush(self.heap, (timestamp, nth, offset, pkt))
+            self.logger.debug("QUEUE timestamp: %d", timestamp)
+            heapq.heappush(self.heap, (timestamp, -nth, offset, pkt))
 
     def recv_enhance(self):
         while True:
@@ -132,9 +134,13 @@ class SVCClient(threading.Thread):
 
         self.buf_ms = -math.inf
         self._do_write()
+        self.usock.close()
+        self.tsock.close()
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--tcp_file",
                         required=True,

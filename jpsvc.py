@@ -3,19 +3,22 @@
 import cv2
 import struct
 import zlib
-import sys
+import logging
+import argparse
 
 
 class SVCWriter():
 
     def __init__(self, path_bl, path_el,
                  size, jpeg_quality, mtu, min_layer=2):
+        self.logger = logging.getLogger("SVCWriter")
+
         self.quality = jpeg_quality
         self.fbl = open(path_bl, "wb")
         self.fel = open(path_el, "wb")
         self.min_layer = min_layer
 
-        buf = struct.pack("!II", height, width)
+        buf = struct.pack("!II", size[0], size[1])
         self.fbl.write(buf)
 
         self.mtu = mtu
@@ -63,12 +66,11 @@ class SVCWriter():
         struct.pack_into("!IB", hdr, 0, timestamp, nth)
         max_pack = self.mtu - hdr_size
 
-        print("LAYER #%d" % nth)
+        self.logger.debug("LAYER #%d", nth)
         for (offset, packet) in self._pack_layer(layer, max_pack):
             struct.pack_into("!II", hdr, hdr_off, offset, len(packet))
             self.fel.write(hdr)
             self.fel.write(packet)
-            print("    offset #%d: %d" % (offset, len(packet)))
 
     def write_frame(self, frame, timestamp):
         jpeg_param = (cv2.IMWRITE_JPEG_QUALITY, self.quality)
@@ -95,28 +97,45 @@ class SVCWriter():
 
 
 def main():
-    video_path = sys.argv[1]
-    cap = cv2.VideoCapture(video_path)
-    
+    logging.basicConfig(level=logging.INFO)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input",
+                        help="Input video file")
+    parser.add_argument("-t", "--tcp_file",
+                        required=True,
+                        help="Base layer in TCP")
+    parser.add_argument("-u", "--udp_file",
+                        required=True,
+                        help="Enhanced layer in UDP")
+    parser.add_argument("-q", "--quality",
+                        type=int,
+                        default=40,
+                        help="JPEG base layer quality")
+    parser.add_argument("-m", "--mtu",
+                        type=int,
+                        default=1400,
+                        help="Network MTU")
+    args = parser.parse_args()
+
+    cap = cv2.VideoCapture(args.input)
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    writer = SVCWriter("out.tcp", "out.udp", (height, width), 40, 1400)
-    fourcc = cv2.VideoWriter_fourcc(*"Y8  ")
-    writer2 = cv2.VideoWriter("out.avi", fourcc, 20.0, (height, width), False)
-    
+    writer = SVCWriter(args.tcp_file, args.udp_file,
+                       (height, width), args.quality, args.mtu)
+
     count = 0
-    while (cap.isOpened() and count < 1000):
+    while (cap.isOpened()):
         ret, frame = cap.read()
         timestamp = int(cap.get(cv2.CAP_PROP_POS_MSEC))
-    
+
         if not ret:
             break
-    
+
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        writer2.write(frame)
         writer.write_frame(frame, timestamp)
-        print("Frame #%d (%d)" % (count, timestamp))
-    
+        logging.info("Frame #%d (%d) written" % (count, timestamp))
+
         count += 1
 
 

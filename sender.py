@@ -14,7 +14,7 @@ import queue
 
 from jpsvc_dec import BS_LAYER_HEADER, EH_LAYER_HEADER
 from socket import IPPROTO_IP
-from socket import IP_MULTICAST_TTL
+from socket import IP_MULTICAST_TTL, IP_TOS
 from socket import SOCK_DGRAM, SOCK_STREAM
 from socket import AF_INET
 
@@ -68,11 +68,10 @@ class SVCServer(threading.Thread):
                  mgroup=("224.21.22.2", 21222),
                  mcast_ttl=5, udp_maxsize=1400):
         super().__init__()
+        self.logger = logging.getLogger("SVCServer")
 
         self.fbl = open(path_bl, "rb")
         self.fel = open(path_el, "rb")
-
-        self.logger = logging.getLogger("SVCServer")
 
         maddr_b = socket.inet_aton(mgroup[0])
         self.first_pkt = struct.pack("!4sH", maddr_b, mgroup[1])
@@ -82,7 +81,9 @@ class SVCServer(threading.Thread):
         self.height, self.width = st_size.unpack(buf)
 
         self.usock = usock = socket.socket(AF_INET, SOCK_DGRAM)
+        #usock.setsockopt(socket.SOL_SOCKET, socket.SO_PRIORITY, 7)
         self.tsock = tsock = socket.socket(AF_INET, SOCK_STREAM)
+        #tsock.setsockopt(socket.SOL_SOCKET, socket.SO_PRIORITY, 2)
         self.mgroup = mgroup
         self.udp_maxsize = udp_maxsize
 
@@ -140,7 +141,7 @@ class SVCServer(threading.Thread):
         clients = []
 
         while timestamp is not None:
-            print("Current timestamp: %.6f" % timestamp)
+            self.logger.debug("Current timestamp: %.6f" % timestamp)
             elapsed = time.time() - start_time
             packet_offset = timestamp - packet_start_time
 
@@ -148,6 +149,9 @@ class SVCServer(threading.Thread):
                 time.sleep(packet_offset - elapsed)
 
             for pkt in udp_packs:
+                _, nth, _, _ = EH_LAYER_HEADER.unpack(pkt[:EH_LAYER_HEADER.size])
+                tos = nth << 4
+                self.usock.setsockopt(socket.SOL_IP, IP_TOS, tos)
                 self.usock.sendto(pkt, self.mgroup)
 
             try:
@@ -178,7 +182,7 @@ class SVCServer(threading.Thread):
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--tcp_file",
